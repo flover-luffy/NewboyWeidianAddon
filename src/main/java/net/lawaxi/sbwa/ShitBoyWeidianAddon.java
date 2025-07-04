@@ -23,7 +23,7 @@ public final class ShitBoyWeidianAddon extends JavaPlugin {
         super(new JvmPluginDescriptionBuilder("net.lawaxi.shitboyWA", "0.1.1-test7")
                 .name("ShitBoyWeidianAddon")
                 .author("delay")
-                .dependsOn("net.lawaxi.shitboy", false)
+                .dependsOn("net.lawaxi.shitboy", true)
                 .build());
     }
 
