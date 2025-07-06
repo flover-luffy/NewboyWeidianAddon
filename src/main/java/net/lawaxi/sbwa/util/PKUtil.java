@@ -7,85 +7,90 @@ import net.lawaxi.Shitboy;
 import net.lawaxi.sbwa.model.PKGroup;
 import net.lawaxi.sbwa.model.PKOpponent;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class PKUtil {
-
-    public static String getOutput(String group_me, long feeAmount_me, JSONObject pk) {
-        String a = "\n---------\n【PK】" + pk.getStr("name");
-
+    
+    public static String getOutput(String groupMe, long feeAmountMe, JSONObject pk) {
+        Objects.requireNonNull(pk, "PK数据不能为null");
+        
+        StringBuilder output = new StringBuilder("\n---------\n【PK】").append(pk.getStr("name"));
         List<PKOpponent> opponents = getOpponents(pk.getJSONArray("opponents"));
-        boolean group_game = false;
-
-        for (PKOpponent opponent : opponents) {
-            if (opponent.group != null) {
-                group_game = true;
-                break;
-            }
-        }
-
-        opponents.add(new PKOpponent(pk.getStr("myname", "我方"), feeAmount_me + pk.getLong("deviation",0L), false)
-                .setGroup(group_me));
-
-        if (group_game) {
-            JSONObject group_properties = pk.getJSONObject("pk_groups");
-
-            HashMap<String, PKGroup> groups2 = new HashMap<>();
-            for (PKOpponent opponent : opponents) {
-                if (!groups2.containsKey(opponent.getGroup())) {
-                    groups2.put(opponent.getGroup(), PKGroup.construct(opponent.getGroup(), group_properties));
-                }
-                groups2.get(opponent.getGroup()).addOpponent(opponent);
-            }
-
-
-            List<PKGroup> g2s = new ArrayList(groups2.values());
-            g2s.sort((a1, a2) -> (a2.getTotalInCoefficient() - a1.getTotalInCoefficient() > 0 ? 1 : -1));
-            //整理组
-            for (PKGroup g : g2s) {
-                a += g.getMessage();
-            }
-
-            return a;
-
+        
+        boolean isGroupGame = opponents.stream()
+            .anyMatch(opp -> opp.group != null);
+        
+        opponents.add(createMeAsOpponent(groupMe, feeAmountMe, pk));
+        
+        if (isGroupGame) {
+            processGroupGame(output, opponents, pk.getJSONObject("pk_groups"));
         } else {
-            //整理各人
-            opponents.sort((a1, a2) -> (a2.feeAmount - a1.feeAmount > 0 ? 1 : -1));
-            for (PKOpponent opponent : opponents) {
-                a += "\n" + opponent.name + ": " + (opponent.feeAmount / 100.0);
-            }
-            return a;
+            processIndividualGame(output, opponents);
         }
+        
+        return output.toString();
+    }
+
+    private static PKOpponent createMeAsOpponent(String group, long amount, JSONObject pk) {
+        return new PKOpponent(
+            pk.getStr("myname"), 
+            amount + pk.getLong("deviation", 0L), 
+            false
+        ).setGroup(group);
+    }
+
+    private static void processGroupGame(StringBuilder output, 
+                                        List<PKOpponent> opponents,
+                                        JSONObject groupProps) {
+        Map<String, PKGroup> groups = opponents.stream()
+            .collect(Collectors.toMap(
+                PKOpponent::getGroup,
+                opp -> PKGroup.construct(opp.getGroup(), groupProps),
+                (existing, replacement) -> existing
+            ));
+            
+        opponents.forEach(opp -> 
+            groups.get(opp.getGroup()).addOpponent(opp));
+            
+        groups.values().stream()
+            .sorted(Comparator.comparingDouble(PKGroup::getTotalInCoefficient).reversed())
+            .forEach(group -> output.append(group.getMessage()));
+    }
+
+    private static void processIndividualGame(StringBuilder output, 
+                                            List<PKOpponent> opponents) {
+        opponents.stream()
+            .sorted(Comparator.comparingLong(opp -> -opp.feeAmount))
+            .forEach(opp -> output.append("\n")
+                .append(opp.name)
+                .append(": ")
+                .append(opp.feeAmount / 100.0));
     }
 
     public static List<PKOpponent> getOpponents(JSONArray opponents) {
-        List<PKOpponent> a = new ArrayList();
-        for (Object o : opponents) {
-            JSONObject o1 = JSONUtil.parseObj(o);
-            a.add(PKOpponent.construct(o1));
-        }
-        return a;
+        if (opponents == null) return Collections.emptyList();
+        
+        return opponents.stream()
+            .map(obj -> PKOpponent.construct(JSONUtil.parseObj(obj)))
+            .collect(Collectors.toList());
     }
 
     public static boolean doGroupsHaveCookie(JSONObject pk) {
-        for (Long group : pk.getBeanList("groups", Long.class)) {
-            //为未提交cookie的群代理pk查询
-            if (!Shitboy.INSTANCE.getProperties().weidian_cookie.containsKey(group)) {
-                return false;
-            }
-        }
-        return true;
+        return pk.getBeanList("groups", Long.class).stream()
+            .allMatch(group -> 
+                Shitboy.INSTANCE.getProperties()
+                    .weidian_cookie.containsKey(group));
     }
 
     public static PKOpponent meAsOpponent(JSONObject pk) {
-        JSONObject asOpponent = new JSONObject();
-        asOpponent.set("name", null);
-        asOpponent.set("stock", pk.getLong("stock"));
-        if (pk.containsKey("group")) {
-            asOpponent.set("group", pk.getStr("group"));
-        }
+        JSONObject asOpponent = new JSONObject()
+            .set("name", null)
+            .set("stock", pk.getLong("stock"));
+            
+        Optional.ofNullable(pk.getStr("group"))
+            .ifPresent(group -> asOpponent.set("group", group));
+            
         return PKOpponent.construct(asOpponent);
     }
 }
