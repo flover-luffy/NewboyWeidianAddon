@@ -3,9 +3,13 @@ package net.lawaxi.sbwa.model;
 import cn.hutool.json.JSONObject;
 import net.lawaxi.model.WeidianCookie;
 import net.lawaxi.sbwa.handler.WeidianHandler;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 
 public class PKOpponent {
+    private static final Logger log = LoggerFactory.getLogger(PKOpponent.class);
     public final String name;
     public final long feeAmount;
     public final boolean hasCookie;
@@ -79,5 +83,15 @@ public class PKOpponent {
             log.error("Fee calculation error", e);
         }
         return fee;
+    }
+
+    private static long calculateTotalStock(JSONObject opponent) {
+        // 实现库存计算逻辑
+        try {
+            return opponent.getLong("stock", 0L);
+        } catch (Exception e) {
+            log.error("Stock calculation error", e);
+            return 0L;
+        }
     }
 }
