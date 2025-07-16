@@ -1,4 +1,4 @@
-package net.lawaxi.sbwa.util;
+package net.luffy.sbwa.util;
 
 import java.io.File;
 

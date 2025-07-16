@@ -1,4 +1,4 @@
-package net.lawaxi.sbwa.config;
+package net.luffy.sbwa.config;
 
 import cn.hutool.json.JSONObject;
 

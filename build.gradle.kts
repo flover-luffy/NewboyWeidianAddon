@@ -5,8 +5,8 @@ plugins {
     id("net.mamoe.mirai-console") version "2.16.0"
 }
 
-group = "net.lawaxi"
-version = "0.1.1-test7"
+group = "net.luffy"
+version = "1.0.0"
 
 repositories {
     maven("https://maven.aliyun.com/repository/public")
@@ -16,7 +16,7 @@ repositories {
 
 dependencies {
     api("cn.hutool:hutool-all:5.8.38")
-    api(files("libs/shitboy-0.1.11-dev7.jar"))
+    api(files("libs/newboy-1.0.0.mirai2.jar"))
     
     // 新增依赖
     implementation("org.apache.commons:commons-lang3:3.12.0")

@@ -1,42 +1,42 @@
-package net.lawaxi.sbwa;
+package net.luffy.sbwa;
 
-import net.lawaxi.Shitboy;
-import net.lawaxi.sbwa.config.ConfigConfig;
-import net.lawaxi.sbwa.handler.LgyzeroHandler;
-import net.lawaxi.sbwa.handler.NewWeidianSenderHandler;
-import net.lawaxi.sbwa.handler.WeidianHandler;
-import net.lawaxi.sbwa.util.Common;
+import net.luffy.Newboy;
+import net.luffy.sbwa.config.ConfigConfig;
+import net.luffy.sbwa.handler.LgyzeroHandler;
+import net.luffy.sbwa.handler.NewWeidianSenderHandler;
+import net.luffy.sbwa.handler.WeidianHandler;
+import net.luffy.sbwa.util.Common;
 import net.mamoe.mirai.console.plugin.Plugin;
 import net.mamoe.mirai.console.plugin.PluginManager;
 import net.mamoe.mirai.console.plugin.jvm.JavaPlugin;
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescriptionBuilder;
 import net.mamoe.mirai.event.GlobalEventChannel;
 
-public final class ShitBoyWeidianAddon extends JavaPlugin {
-    public static final ShitBoyWeidianAddon INSTANCE = new ShitBoyWeidianAddon();
-    public static Shitboy INSTANCE_SHITBOY;
+public final class NewboyWeidianAddon extends JavaPlugin {
+    public static final NewboyWeidianAddon INSTANCE = new NewboyWeidianAddon();
+    public static Newboy INSTANCE_NEWBOY;
     public static ConfigConfig config;
     public static WeidianHandler weidianHandler;
     public static LgyzeroHandler lgyzeroHandler;
 
-    private ShitBoyWeidianAddon() {
-        super(new JvmPluginDescriptionBuilder("net.lawaxi.shitboyWA", "0.1.1-test7")
-                .name("ShitBoyWeidianAddon")
+    private NewboyWeidianAddon() {
+        super(new JvmPluginDescriptionBuilder("net.luffy.newboyWA", "0.1.1-test7")
+                .name("NewboyWeidianAddon")
                 .author("delay")
-                .dependsOn("net.lawaxi.shitboy", true)
+                .dependsOn("net.luffy.newboy", true)
                 .build());
     }
 
     @Override
     public void onEnable() {
-        if (loadShitboy()) {
+        if (loadnewboy()) {
             initConfig();
             weidianHandler = new WeidianHandler();
             if (config.proxy_lgyzero) {
                 lgyzeroHandler = new LgyzeroHandler();
             }
 
-            INSTANCE_SHITBOY.handlerWeidianSender = new NewWeidianSenderHandler();
+            INSTANCE_NEWBOY.handlerWeidianSender = new NewWeidianSenderHandler();
             GlobalEventChannel.INSTANCE.registerListenerHost(new listener());
         }
     }
@@ -46,15 +46,15 @@ public final class ShitBoyWeidianAddon extends JavaPlugin {
         config = new ConfigConfig(resolveConfigFile("config.setting"));
     }
 
-    private boolean loadShitboy() {
+    private boolean loadnewboy() {
         for (Plugin plugin : PluginManager.INSTANCE.getPlugins()) {
-            if (plugin instanceof Shitboy) {
-                INSTANCE_SHITBOY = (Shitboy) plugin;
-                getLogger().info("读取Shitboy插件成功");
+            if (plugin instanceof Newboy) {
+                INSTANCE_NEWBOY = (Newboy) plugin;
+                getLogger().info("读取Newboy插件成功");
                 return true;
             }
         }
-        getLogger().info("读取Shitboy插件失败");
+        getLogger().info("读取Newboy插件失败");
         return false;
     }
 }

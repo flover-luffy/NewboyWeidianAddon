@@ -1,4 +1,4 @@
-package net.lawaxi.sbwa.config;
+package net.luffy.sbwa.config;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ArrayUtil;
@@ -7,10 +7,11 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import cn.hutool.setting.Setting;
-import net.lawaxi.sbwa.handler.WeidianHandler;
-import net.lawaxi.sbwa.model.Lottery2;
-import net.lawaxi.sbwa.util.Common;
-import net.lawaxi.sbwa.util.PKUtil;
+import net.luffy.Newboy;
+import net.luffy.sbwa.handler.WeidianHandler;
+import net.luffy.sbwa.model.Lottery2;
+import net.luffy.sbwa.util.Common;
+import net.luffy.sbwa.util.PKUtil;
 
 import java.io.File;
 import java.nio.charset.Charset;
@@ -18,6 +19,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 public class ConfigConfig extends SimpleSettingConfig {
     public static ConfigConfig INSTANCE;
@@ -210,6 +213,141 @@ public class ConfigConfig extends SimpleSettingConfig {
     //pk
 
     public String addPkByJson(JSONObject json) {
+        return addPkByJsonSync(json);
+    }
+    
+    /**
+     * 异步并行创建PK，适用于多个对手的情况
+     * @param json PK配置JSON
+     * @return PK ID或错误信息
+     */
+    public String addPkByJsonAsync(JSONObject json) {
+        String id = json.getStr("id", "");
+        if (!(!id.equals("") && !pk.containsKey(json.getStr("id")))) {
+            id = generatePkId();
+        }
+
+        if (!isValidPK(json))
+            return "null";
+
+        // 异步处理主商品库存（使用批量查询优化）
+        CompletableFuture<Void> mainStockFuture = CompletableFuture.runAsync(() -> {
+            if (!PKUtil.doGroupsHaveCookie(json) && !json.containsKey("stock")) {
+                List<Long> itemIds = json.getBeanList("item_ids", Long.class);
+                if (itemIds != null && !itemIds.isEmpty()) {
+                    try {
+                        Map<Long, Long> stockMap = net.luffy.sbwa.handler.WeidianHandler.INSTANCE
+                            .getTotalStockBatch(itemIds).get(30, TimeUnit.SECONDS);
+                        
+                        long totalStock = stockMap.values().stream()
+                            .mapToLong(Long::longValue)
+                            .sum();
+                        
+                        if (totalStock != 0L) {
+                            synchronized (json) {
+                                json.set("stock", totalStock);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // 降级到串行处理
+                        long stock = 0;
+                        for (Long item_id : itemIds) {
+                            stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                        }
+                        if (stock != 0L) {
+                            synchronized (json) {
+                                json.set("stock", stock);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 异步并行处理所有对手的库存
+        JSONArray opponents = json.getJSONArray("opponents");
+        List<CompletableFuture<JSONObject>> opponentFutures = new ArrayList<>();
+        
+        for (Object o : opponents.toArray()) {
+            JSONObject opponent = JSONUtil.parseObj(o);
+            
+            CompletableFuture<JSONObject> opponentFuture = CompletableFuture.supplyAsync(() -> {
+                if (opponent.containsKey("item_id")) {
+                    boolean success = opponent.containsKey("cookie") || opponent.containsKey("stock");
+                    if (!success) {
+                        List<Long> itemIds = opponent.getBeanList("item_id", Long.class);
+                        if (itemIds != null && !itemIds.isEmpty()) {
+                            try {
+                                // 使用批量查询优化
+                                Map<Long, Long> stockMap = net.luffy.sbwa.handler.WeidianHandler.INSTANCE
+                                    .getTotalStockBatch(itemIds).get(20, TimeUnit.SECONDS);
+                                
+                                long totalStock = stockMap.values().stream()
+                                    .mapToLong(Long::longValue)
+                                    .sum();
+                                
+                                if (totalStock != 0L) {
+                                    opponent.set("stock", totalStock);
+                                    return opponent;
+                                }
+                            } catch (Exception e) {
+                                // 降级到串行处理
+                                long stock = 0;
+                                for (Long item_id : itemIds) {
+                                    stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                                }
+                                if (stock != 0L) {
+                                    opponent.set("stock", stock);
+                                    return opponent;
+                                }
+                            }
+                        }
+                    } else {
+                        return opponent;
+                    }
+                }
+                return null; // 表示失败
+            });
+            
+            opponentFutures.add(opponentFuture);
+        }
+
+        try {
+            // 等待主商品库存处理完成
+            mainStockFuture.get(30, TimeUnit.SECONDS);
+            
+            // 等待所有对手库存处理完成
+            CompletableFuture<Void> allOpponentsFuture = CompletableFuture.allOf(
+                opponentFutures.toArray(new CompletableFuture[0])
+            );
+            allOpponentsFuture.get(60, TimeUnit.SECONDS); // 给更多时间处理多个对手
+            
+            // 收集结果
+            JSONArray processedOpponents = new JSONArray();
+            for (CompletableFuture<JSONObject> future : opponentFutures) {
+                JSONObject result = future.get();
+                if (result == null) {
+                    return "failed";
+                }
+                processedOpponents.add(result);
+            }
+            
+            json.set("opponents", processedOpponents);
+            pk.put(id, json);
+            setting.setByGroup(id, "pk", json.toString());
+            save();
+            return id;
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "failed";
+        }
+    }
+    
+    /**
+     * 同步版本的PK创建（保持向后兼容）
+     */
+    private String addPkByJsonSync(JSONObject json) {
         String id = json.getStr("id", "");
         if (!(!id.equals("") && !pk.containsKey(json.getStr("id")))) {
             id = generatePkId();
@@ -221,7 +359,7 @@ public class ConfigConfig extends SimpleSettingConfig {
         if (!PKUtil.doGroupsHaveCookie(json) && !json.containsKey("stock")) {
             long stock = 0;
             for (Long item_id : json.getBeanList("item_ids", Long.class)) {
-                stock += WeidianHandler.INSTANCE.getTotalStock(item_id);
+                stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
             }
 
             if (stock != 0L) {
@@ -237,7 +375,7 @@ public class ConfigConfig extends SimpleSettingConfig {
                 if (!success) {
                     long stock = 0;
                     for (Long item_id : opponent.getBeanList("item_id", Long.class)) {
-                        stock += WeidianHandler.INSTANCE.getTotalStock(item_id);
+                        stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
                     }
 
                     if (stock != 0L) {

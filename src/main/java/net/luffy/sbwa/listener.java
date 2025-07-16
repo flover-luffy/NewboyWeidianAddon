@@ -1,16 +1,22 @@
-package net.lawaxi.sbwa;
+package net.luffy.sbwa;
 
+import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import net.lawaxi.Shitboy;
-import net.lawaxi.model.WeidianCookie;
-import net.lawaxi.model.WeidianItem;
-import net.lawaxi.sbwa.config.ConfigConfig;
-import net.lawaxi.sbwa.handler.NewWeidianSenderHandler;
-import net.lawaxi.sbwa.handler.WeidianHandler;
-import net.lawaxi.sbwa.model.*;
-import net.lawaxi.sbwa.util.PKUtil;
-import net.lawaxi.util.CommandOperator;
+import net.luffy.Newboy;
+import net.luffy.model.WeidianCookie;
+import net.luffy.model.WeidianItem;
+import net.luffy.sbwa.handler.WeidianHandler;
+import net.luffy.sbwa.handler.WebSalesExtractor;
+import net.luffy.sbwa.config.ConfigConfig;
+import net.luffy.sbwa.handler.NewWeidianSenderHandler;
+import net.luffy.sbwa.model.Gift2;
+import net.luffy.sbwa.model.Lottery2;
+import net.luffy.sbwa.model.OwnedGift;
+import net.luffy.sbwa.model.OwnedProxyGift;
+import net.luffy.sbwa.model.PKOpponent;
+import net.luffy.sbwa.util.PKUtil;
+import net.luffy.util.CommandOperator;
 import net.mamoe.mirai.Bot;
 import net.mamoe.mirai.contact.Group;
 import net.mamoe.mirai.contact.Member;
@@ -22,6 +28,7 @@ import net.mamoe.mirai.event.events.GroupMessageEvent;
 import net.mamoe.mirai.event.events.UserMessageEvent;
 import net.mamoe.mirai.message.data.At;
 import net.mamoe.mirai.message.data.PlainText;
+import kotlin.coroutines.CoroutineContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +37,13 @@ import java.util.Map;
 public class listener extends SimpleListenerHost {
 
     public listener() {
-        CommandOperator.INSTANCE.addHelp(getHelp(1));
-        CommandOperator.INSTANCE.addHelp(getHelp(2));
+        // 帮助信息通过getHelp方法提供，无需注册到CommandOperator
+    }
+
+    @Override
+    public void handleException(CoroutineContext context, Throwable exception) {
+        // 处理事件监听器中的异常，避免程序崩溃
+        NewboyWeidianAddon.INSTANCE.getLogger().error("事件处理异常", exception);
     }
 
     @EventHandler()
@@ -41,8 +53,11 @@ public class listener extends SimpleListenerHost {
 
         if (message.startsWith("/")) {
             String[] args = message.split(" ");
-            if (args[0].equals("/抽卡")) {
-                if (ShitBoyWeidianAddon.INSTANCE_SHITBOY.getConfig().isAdmin(group, event.getSender().getId())) {
+            if (args[0].equals("/help")) {
+                // 显示插件帮助信息
+                group.sendMessage("【NewboyWeidianAddon 帮助】\n" + getHelp(1) + "\n" + getHelp(2));
+            } else if (args[0].equals("/抽卡")) {
+                if (NewboyWeidianAddon.INSTANCE_NEWBOY.getConfig().isAdmin(group, event.getSender().getId())) {
                     if (args.length == 4 && args[1].equals("抽")) {
                         String id = args[2];
                         int pay = Integer.valueOf(args[3]);
@@ -69,9 +84,9 @@ public class listener extends SimpleListenerHost {
 
                 long itemid = pk.getLong("item_id");
                 //已提交cookie的群
-                if (Shitboy.INSTANCE.getProperties().weidian_cookie.containsKey(group.getId())) {
-                    WeidianCookie cookie = Shitboy.INSTANCE.getProperties().weidian_cookie.get(group.getId());
-                    WeidianItem item = WeidianHandler.INSTANCE.searchItem(cookie, itemid);
+                if (Newboy.INSTANCE.getProperties().weidian_cookie.containsKey(group.getId())) {
+                    WeidianCookie cookie = Newboy.INSTANCE.getProperties().weidian_cookie.get(group.getId());
+                    WeidianItem item = Newboy.INSTANCE.getHandlerWeidian().searchItem(cookie, itemid);
                     if (item != null) {
                         group.sendMessage(NewWeidianSenderHandler.INSTANCE.executeItemMessages(
                                 item,
@@ -101,10 +116,10 @@ public class listener extends SimpleListenerHost {
                 group.sendMessage(new At(event.getSender().getId()).plus("请输入正确的微店id"));
             }
         } else if (message.equals("查卡")) {
-            if (!checkCardInGroup(group, event.getSender()) && ShitBoyWeidianAddon.config.proxy_lgyzero) {
+            if (!checkCardInGroup(group, event.getSender()) && NewboyWeidianAddon.config.proxy_lgyzero) {
                 checkProxyCardInGroup(group, event.getSender());
             }
-        } else if (message.equals("代查") && ShitBoyWeidianAddon.config.proxy_lgyzero) {
+        } else if (message.equals("代查") && NewboyWeidianAddon.config.proxy_lgyzero) {
             checkProxyCardInGroup(group, event.getSender());
         }
 
@@ -139,7 +154,7 @@ public class listener extends SimpleListenerHost {
     private void checkProxyCardInGroup(Group group, Member sender) {
         long buyerId = ConfigConfig.INSTANCE.getBindingBuyerId("" + sender.getId());
         if (buyerId != 0L) {
-            JSONObject inquired = ShitBoyWeidianAddon.lgyzeroHandler.inquireCard(buyerId);
+            JSONObject inquired = NewboyWeidianAddon.lgyzeroHandler.inquireCard(buyerId);
             if (inquired != null) {
                 String out = "";
                 JSONObject infos = inquired.getJSONObject("progressInfo");
@@ -148,7 +163,7 @@ public class listener extends SimpleListenerHost {
                         if (!out.equals("")) {
                             out += "\n+++++++++\n";
                         }
-                        out += ShitBoyWeidianAddon.lgyzeroHandler.checkOwnedGifts(inquired, key, false, null);
+                        out += NewboyWeidianAddon.lgyzeroHandler.checkOwnedGifts(inquired, key, false, null);
                     }
                 }
                 if (!out.equals("")) {
@@ -167,7 +182,15 @@ public class listener extends SimpleListenerHost {
 
         if (message.startsWith("/")) {
             String[] args = splitPrivateCommand(message); //分三份
-            if (args[0].equals("/抽卡")) {
+            if (args[0].equals("/help")) {
+                // 显示插件帮助信息
+                sender.sendMessage("【NewboyWeidianAddon 帮助】\n" + getHelp(1) + "\n" + getHelp(2));
+            } else if (args[0].equals("/抽卡")) {
+                // 检查args[1]是否为null，避免NullPointerException
+                if (args[1] == null) {
+                    sender.sendMessage(getHelp(1));
+                    return ListeningStatus.LISTENING;
+                }
 
                 if (args[1].equals("新建")) {
                     sender.sendMessage(newDocument(args[2], sender.getId(), event.getBot()));
@@ -225,7 +248,7 @@ public class listener extends SimpleListenerHost {
                     }
                 } else if (args[1].equals("查卡")) {
                     checkCard(sender, message.substring(message.indexOf("查卡")));
-                } else if (args[1].equals("代查") && ShitBoyWeidianAddon.config.proxy_lgyzero) {
+                } else if (args[1].equals("代查") && NewboyWeidianAddon.config.proxy_lgyzero) {
                     checkProxyCard(sender, message.substring(message.indexOf("代查")));
                 } else {
                     sender.sendMessage(getHelp(1));
@@ -233,9 +256,16 @@ public class listener extends SimpleListenerHost {
 
 
             } else if (args[0].equals("/pk")) {
+                // 检查args[1]是否为null，避免NullPointerException
+                if (args[1] == null) {
+                    sender.sendMessage(getHelp(2));
+                    return ListeningStatus.LISTENING;
+                }
 
                 if (args[1].equals("新建")) {
                     sender.sendMessage(newPK(args[2], sender.getId(), event.getBot()));
+                } else if (args[1].equals("快速新建")) {
+                    sender.sendMessage(newPKAsync(args[2], sender.getId(), event.getBot()));
                 } else if (args[1].equals("修改") && args[2].contains(" ")) {
                     String arg2 = args[2].substring(0, args[2].indexOf(" "));
                     String arg3 = args[2].substring(args[2].indexOf(" ") + 1);
@@ -300,9 +330,16 @@ public class listener extends SimpleListenerHost {
                             else {
                                 try {
                                     long balance = Long.valueOf(arg2[2]).longValue();
+                                    // 确保输入的金额不为负数
+                                    if (balance < 0) {
+                                        sender.sendMessage("金额不能为负数");
+                                        return ListeningStatus.LISTENING;
+                                    }
                                     long stock_pre = pks.get(0).getValue().getLong("stock");
                                     long balance_pre = PKUtil.meAsOpponent(pks.get(0).getValue()).feeAmount;
                                     long stock = balance - balance_pre + stock_pre;
+                                    // 确保计算后的库存不为负数
+                                    stock = Math.max(0L, stock);
                                     ConfigConfig.INSTANCE.editStock(id, stock);
                                     sender.sendMessage("修正成功");
                                 }catch (NumberFormatException e){
@@ -319,9 +356,16 @@ public class listener extends SimpleListenerHost {
                                     sender.sendMessage("此对手金额为cookie统计无法修正，如有错误请联系管理员");
                                 } else {
                                     long balance = Long.valueOf(arg2[2]).longValue();
+                                    // 确保输入的金额不为负数
+                                    if (balance < 0) {
+                                        sender.sendMessage("金额不能为负数");
+                                        return ListeningStatus.LISTENING;
+                                    }
                                     long stock_pre = opponent.getLong("stock");
                                     long balance_pre = o.feeAmount;
                                     long stock = balance - balance_pre + stock_pre;
+                                    // 确保计算后的库存不为负数
+                                    stock = Math.max(0L, stock);
                                     ConfigConfig.INSTANCE.editStock(id, arg2[1], stock);
                                     sender.sendMessage("修正成功");
                                 }
@@ -343,7 +387,7 @@ public class listener extends SimpleListenerHost {
         } else if (message.startsWith("查卡")) {
             checkCard(sender, message);
 
-        } else if (message.startsWith("代查") && ShitBoyWeidianAddon.config.proxy_lgyzero) {
+        } else if (message.startsWith("代查") && NewboyWeidianAddon.config.proxy_lgyzero) {
             checkProxyCard(sender, message);
         }
         return ListeningStatus.LISTENING;
@@ -363,11 +407,12 @@ public class listener extends SimpleListenerHost {
                     + "(私信)/抽卡 绑定 <微店ID>\n"
                     + "(私信)/抽卡 解绑\n"
                     + "(私信)/抽卡 查卡\n"
-                    + (ShitBoyWeidianAddon.config.proxy_lgyzero ? "(私信)/抽卡 代查\n" : "");
+                    + (NewboyWeidianAddon.config.proxy_lgyzero ? "(私信)/抽卡 代查\n" : "");
         }
         return "【微店PK相关】\n"
                 + "pk\n"
-                + "(私信)/pk 新建 <json>\n"
+                + "(私信)/pk 新建 <json> - 创建PK并自动监控没有cookie的对手\n"
+                + "(私信)/pk 快速新建 <json> - 异步并行获取对手金额(推荐多对手时使用)\n"
                 + "(私信)/pk 修改 <pkID> <json>\n"
                 + "(私信)/pk 获取 <pkID>\n"
                 + "(私信)/pk 删除 <pkID>\n"
@@ -424,13 +469,94 @@ public class listener extends SimpleListenerHost {
                 case "null":
                     return "请按规定格式输入json";
                 default:
-                    return "创建成功，id: " + id;
+                    // PK创建成功后，自动启动对没有cookie的对手的库存监控
+                    autoStartMonitoringForNoCookieOpponents(o, id);
+                    return "创建成功，id: " + id + "\n已自动启动对没有cookie的对手的库存监控";
 
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return "请按规定格式输入json";
+    }
+    
+    /**
+     * 自动为没有cookie的对手启动库存监控
+     * @param pkData PK数据
+     * @param pkId PK ID
+     */
+    private void autoStartMonitoringForNoCookieOpponents(JSONObject pkData, String pkId) {
+        try {
+            if (pkData.containsKey("opponents")) {
+                JSONArray opponents = pkData.getJSONArray("opponents");
+                if (opponents != null) {
+                    for (Object opponentObj : opponents) {
+                        JSONObject opponent = JSONUtil.parseObj(opponentObj);
+                        
+                        // 检查对手是否没有cookie但有商品ID
+                        String cookie = opponent.getStr("cookie", "");
+                        if (cookie.trim().isEmpty() && opponent.containsKey("item_id")) {
+                            List<Long> itemIds = opponent.getBeanList("item_id", Long.class);
+                            if (itemIds != null && !itemIds.isEmpty()) {
+                                for (Long itemId : itemIds) {
+                                    if (itemId != null) {
+                                        // 启动智能监控
+                                        WeidianHandler.INSTANCE.startSmartMonitoring(itemId);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 监控启动失败不影响PK创建，只记录错误
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * 异步并行创建PK，适用于多个对手的情况
+     * @param arg2 PK配置JSON字符串
+     * @param qqId 用户QQ ID
+     * @param bot Bot实例
+     * @return 创建结果信息
+     */
+    private String newPKAsync(String arg2, long qqId, Bot bot) {
+        try {
+            JSONObject o = JSONUtil.parseObj(arg2);
+            long g = administratingValidJson(o, qqId, bot);
+            if (g != 0L)
+                return "您在json中涉及的群" + g + "中没有管理权限";
+
+            // 检查对手数量，如果对手较多建议使用异步模式
+            JSONArray opponents = o.getJSONArray("opponents");
+            int opponentCount = opponents != null ? opponents.size() : 0;
+            
+            if (opponentCount <= 2) {
+                // 对手较少，使用同步模式
+                return newPK(arg2, qqId, bot);
+            }
+            
+            // 使用异步模式创建PK
+            String id = ConfigConfig.INSTANCE.addPkByJsonAsync(o);
+            switch (id) {
+                case "failed":
+                    return "获取对手金额失败，请检查PK对手商品id是否填写正确并已上架。\n" +
+                           "提示：异步模式下，多个对手的库存获取是并行进行的，可能某个商品ID无效或网络超时。";
+                case "null":
+                    return "请按规定格式输入json";
+                default:
+                    // PK创建成功后，自动启动对没有cookie的对手的库存监控
+                    autoStartMonitoringForNoCookieOpponents(o, id);
+                    return "创建成功，id: " + id + "\n" +
+                           "使用异步并行模式处理了 " + opponentCount + " 个对手的库存数据，" +
+                           "大大提升了处理速度！\n已自动启动对没有cookie的对手的库存监控";
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "异步创建PK时发生错误: " + e.getMessage();
+        }
     }
 
     private void checkCard(User sender, String message) {
@@ -481,7 +607,7 @@ public class listener extends SimpleListenerHost {
         long buyerId = ConfigConfig.INSTANCE.getBindingBuyerId("" + sender.getId());
         if (buyerId != 0L) {
             List<OwnedProxyGift> owned = new ArrayList<>();
-            JSONObject inquired = ShitBoyWeidianAddon.lgyzeroHandler.inquireCard(buyerId);
+            JSONObject inquired = NewboyWeidianAddon.lgyzeroHandler.inquireCard(buyerId);
             if (inquired != null) {
                 JSONObject infos = inquired.getJSONObject("progressInfo");
                 if (infos.keySet().size() == 0) {
@@ -494,7 +620,7 @@ public class listener extends SimpleListenerHost {
                     if (!out.equals("")) {
                         out += "\n+++++++++\n";
                     }
-                    out += ShitBoyWeidianAddon.lgyzeroHandler.checkOwnedGifts(inquired, key, true, owned);
+                    out += NewboyWeidianAddon.lgyzeroHandler.checkOwnedGifts(inquired, key, true, owned);
                 }
 
                 if (message.indexOf(" ") != -1) {
@@ -534,7 +660,7 @@ public class listener extends SimpleListenerHost {
 
             boolean n = true;
             for (long group : lottery.groupIds) {
-                if (!ShitBoyWeidianAddon.INSTANCE_SHITBOY.getConfig().isAdmin(bot.getGroup(group), qqId)) {
+                if (!NewboyWeidianAddon.INSTANCE_NEWBOY.getConfig().isAdmin(bot.getGroup(group), qqId)) {
                     n = false;
                 }
             }
@@ -556,7 +682,7 @@ public class listener extends SimpleListenerHost {
 
     public long administratingValidJson(JSONObject json, long qqId, Bot bot) {
         for (Long g : json.getBeanList("groups", Long.class)) {
-            if (!ShitBoyWeidianAddon.INSTANCE_SHITBOY.getConfig().isAdmin(bot.getGroup(g), qqId)) {
+            if (!NewboyWeidianAddon.INSTANCE_NEWBOY.getConfig().isAdmin(bot.getGroup(g), qqId)) {
                 return g.longValue();
             }
         }
@@ -577,4 +703,6 @@ public class listener extends SimpleListenerHost {
         out[i] = command;
         return out;
     }
-}
+
+
+ }

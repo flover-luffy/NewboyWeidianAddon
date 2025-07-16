@@ -1,11 +1,11 @@
-package net.lawaxi.sbwa.handler;
+package net.luffy.sbwa.handler;
 
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import net.lawaxi.handler.WebHandler;
-import net.lawaxi.sbwa.ShitBoyWeidianAddon;
-import net.lawaxi.sbwa.model.OwnedProxyGift;
+import net.luffy.handler.WebHandler;
+import net.luffy.sbwa.NewboyWeidianAddon;
+import net.luffy.sbwa.model.OwnedProxyGift;
 
 import java.util.List;
 

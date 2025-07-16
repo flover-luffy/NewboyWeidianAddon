@@ -1,4 +1,4 @@
-package net.lawaxi.sbwa.model;
+package net.luffy.sbwa.model;
 
 import cn.hutool.json.JSONObject;
 

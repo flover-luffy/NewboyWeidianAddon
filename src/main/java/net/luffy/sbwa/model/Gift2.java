@@ -1,7 +1,7 @@
-package net.lawaxi.sbwa.model;
+package net.luffy.sbwa.model;
 
 import cn.hutool.core.io.FileUtil;
-import net.lawaxi.sbwa.util.Common;
+import net.luffy.sbwa.util.Common;
 
 import java.io.File;
 import java.io.InputStream;

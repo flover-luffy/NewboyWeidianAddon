@@ -1,11 +1,11 @@
-package net.lawaxi.sbwa.util;
+package net.luffy.sbwa.util;
 
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import net.lawaxi.Shitboy;
-import net.lawaxi.sbwa.model.PKGroup;
-import net.lawaxi.sbwa.model.PKOpponent;
+import net.luffy.Newboy;
+import net.luffy.sbwa.model.PKGroup;
+import net.luffy.sbwa.model.PKOpponent;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -33,9 +33,11 @@ public class PKUtil {
     }
 
     private static PKOpponent createMeAsOpponent(String group, long amount, JSONObject pk) {
+        // 计算最终金额，确保不为负数
+        long finalAmount = Math.max(0L, amount + pk.getLong("deviation", 0L));
         return new PKOpponent(
             pk.getStr("myname"), 
-            amount + pk.getLong("deviation", 0L), 
+            finalAmount, 
             false
         ).setGroup(group);
     }
@@ -79,7 +81,7 @@ public class PKUtil {
     public static boolean doGroupsHaveCookie(JSONObject pk) {
         return pk.getBeanList("groups", Long.class).stream()
             .allMatch(group -> 
-                Shitboy.INSTANCE.getProperties()
+                Newboy.INSTANCE.getProperties()
                     .weidian_cookie.containsKey(group));
     }
 

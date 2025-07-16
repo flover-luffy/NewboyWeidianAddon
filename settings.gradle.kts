@@ -1,1 +1,1 @@
-rootProject.name = "shitboyWeidianAddon"
+rootProject.name = "newboyWeidianAddon"

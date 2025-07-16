@@ -1,10 +1,10 @@
-package net.lawaxi.sbwa.model;
+package net.luffy.sbwa.model;
 
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import net.lawaxi.sbwa.ShitBoyWeidianAddon;
-import net.lawaxi.sbwa.config.ConfigLotteryDocument;
+import net.luffy.sbwa.NewboyWeidianAddon;
+import net.luffy.sbwa.config.ConfigLotteryDocument;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -50,7 +50,7 @@ public class Lottery2 {
         if (g != null) {
             this.document.getData().addGiftId(buyerId, g.id);
         } else {
-            ShitBoyWeidianAddon.INSTANCE.getLogger().warning("错误的抽卡结果: null");
+            NewboyWeidianAddon.INSTANCE.getLogger().warning("错误的抽卡结果: null");
         }
         return g;
     }
@@ -205,7 +205,7 @@ public class Lottery2 {
                     document);
         } catch (Exception e) {
             e.printStackTrace();
-            ShitBoyWeidianAddon.INSTANCE.getLogger().info("格式错误");
+            NewboyWeidianAddon.INSTANCE.getLogger().info("格式错误");
             return null;
         }
     }

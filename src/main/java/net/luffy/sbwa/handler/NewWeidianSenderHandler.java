@@ -1,16 +1,16 @@
-package net.lawaxi.sbwa.handler;
+package net.luffy.sbwa.handler;
 
 import cn.hutool.json.JSONObject;
-import net.lawaxi.handler.WeidianSenderHandler;
-import net.lawaxi.model.WeidianItem;
-import net.lawaxi.model.WeidianItemMessage;
-import net.lawaxi.model.WeidianOrder;
-import net.lawaxi.model.WeidianOrderMessage;
-import net.lawaxi.sbwa.ShitBoyWeidianAddon;
-import net.lawaxi.sbwa.config.ConfigConfig;
-import net.lawaxi.sbwa.model.Gift2;
-import net.lawaxi.sbwa.model.Lottery2;
-import net.lawaxi.sbwa.util.PKUtil;
+import net.luffy.handler.WeidianSenderHandler;
+import net.luffy.model.WeidianItem;
+import net.luffy.model.WeidianItemMessage;
+import net.luffy.model.WeidianOrder;
+import net.luffy.model.WeidianOrderMessage;
+import net.luffy.sbwa.NewboyWeidianAddon;
+import net.luffy.sbwa.config.ConfigConfig;
+import net.luffy.sbwa.model.Gift2;
+import net.luffy.sbwa.model.Lottery2;
+import net.luffy.sbwa.util.PKUtil;
 import net.mamoe.mirai.contact.Group;
 import net.mamoe.mirai.message.data.Message;
 import net.mamoe.mirai.message.data.PlainText;
@@ -27,7 +27,7 @@ public class NewWeidianSenderHandler extends WeidianSenderHandler {
     private final MiraiLogger logger;
 
     public NewWeidianSenderHandler() {
-        this.logger = ShitBoyWeidianAddon.INSTANCE_SHITBOY.getLogger();
+        this.logger = NewboyWeidianAddon.INSTANCE_NEWBOY.getLogger();
         INSTANCE = this;
     }
 
