@@ -28,6 +28,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
             
+      - name: Create libs directory and placeholder jar
+        run: |
+          New-Item -ItemType Directory -Force -Path libs
+          if (-not (Test-Path "libs\newboy-1.0.0.mirai2.jar")) {
+            # Create a minimal placeholder jar file
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zipPath = "libs\newboy-1.0.0.mirai2.jar"
+            [System.IO.Compression.ZipFile]::CreateFromDirectory((New-Item -ItemType Directory -Force -Path "temp_jar").FullName, $zipPath)
+            Remove-Item -Recurse -Force "temp_jar"
+          }
+            
       - name: Build with Gradle
         run: .\gradlew.bat build
         
