@@ -8,7 +8,7 @@
 
 ## 📖 项目简介
 
-NewboyWeidianAddon 是一个专为 Mirai Console 设计的微店功能增强插件，依赖于 [Newboy](https://github.com/Lawaxi/ShitBoy) 插件运行。本插件为微店订单处理提供了强大的抽卡系统和PK竞赛功能，支持实时库存监控、智能销量估算和高性能并发处理。
+NewboyWeidianAddon 是一个专为 Mirai Console 设计的微店功能增强插件，依赖于 [Newboy](https://github.com/flover-luffy/newboy) 插件运行。本插件为微店订单处理提供了强大的抽卡系统和PK竞赛功能，支持实时库存监控、智能销量估算和高性能并发处理。
 
 ### ✨ 核心特性
 

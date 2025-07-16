@@ -1,20 +1,26 @@
 package net.luffy.sbwa.handler;
 
+import cn.hutool.http.HttpRequest;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import net.luffy.handler.WebHandler;
 import net.luffy.sbwa.NewboyWeidianAddon;
 import net.luffy.sbwa.model.OwnedProxyGift;
 
 import java.util.List;
 
-public class LgyzeroHandler extends WebHandler {
+public class LgyzeroHandler {
     public static final String API = "http://www.lgyzero.top/api/cardLottery/cardInquire";
 
     public JSONObject inquireCard(long buyerId) {
         try {
-            JSONObject object = JSONUtil.parseObj(post(API, String.format("{\"data\":{\"platform\":\"Weidian\",\"userID\":\"%d\"}}", buyerId)));
+            String requestBody = String.format("{\"data\":{\"platform\":\"Weidian\",\"userID\":\"%d\"}}", buyerId);
+            String response = HttpRequest.post(API)
+                    .header("Content-Type", "application/json")
+                    .body(requestBody)
+                    .execute()
+                    .body();
+            JSONObject object = JSONUtil.parseObj(response);
             if (object.getInt("status") == 0) {
                 return object.getJSONObject("content");
             }
