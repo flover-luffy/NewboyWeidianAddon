@@ -38,6 +38,7 @@ NewboyWeidianAddon 是一个专为 Mirai Console 设计的微店功能增强插�
 2. **构建插件**
    ```bash
    ./gradlew clean buildPlugin
+   ./gradlew clean buildPlugin --no-build-cache
    ```
 
 3. **部署插件**
@@ -386,4 +387,5 @@ tail -f logs/performance.log
 https://github.com/flover-luffy
 <div align="center">
   <sub>Built with ❤️ by the NewboyWeidianAddon team</sub>
+
 </div>
