@@ -35,8 +35,12 @@ public class PKUtil {
     private static PKOpponent createMeAsOpponent(String group, long amount, JSONObject pk) {
         // 计算最终金额，确保不为负数
         long finalAmount = Math.max(0L, amount + pk.getLong("deviation", 0L));
+        
+        // 获取myname字段，如果未设置则使用默认值"我"
+        String myName = pk.getStr("myname", "我");
+        
         return new PKOpponent(
-            pk.getStr("myname"), 
+            myName, 
             finalAmount, 
             false
         ).setGroup(group);

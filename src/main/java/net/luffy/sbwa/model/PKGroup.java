@@ -58,7 +58,21 @@ public class PKGroup {
     }
 
     private void appendPrice(long price) {
-        this.total += price;
+        // 检查累加是否会导致溢出
+        if (price > 0 && this.total > Long.MAX_VALUE - price) {
+            System.err.println("警告: PK总金额累加溢出，当前总额=" + this.total + ", 新增金额=" + price);
+            this.total = Long.MAX_VALUE;
+        } else if (price < 0 && this.total < Long.MIN_VALUE - price) {
+            System.err.println("警告: PK总金额累加下溢，当前总额=" + this.total + ", 新增金额=" + price);
+            this.total = 0L; // 确保总额不为负数
+        } else {
+            this.total += price;
+            // 确保总额不为负数
+            if (this.total < 0) {
+                System.err.println("警告: PK总金额为负数，重置为0，原值=" + (this.total - price));
+                this.total = 0L;
+            }
+        }
     }
 
     public long getTotalInCoefficient() {
@@ -66,6 +80,26 @@ public class PKGroup {
     }
 
     public long getPriceInCoefficient(long price) {
-        return this.coefficient.multiply(new BigDecimal(price)).longValue();
+        try {
+            BigDecimal result = this.coefficient.multiply(new BigDecimal(price));
+            
+            // 检查结果是否超出long的范围
+            if (result.compareTo(new BigDecimal(Long.MAX_VALUE)) > 0) {
+                // 如果超出范围，返回Long.MAX_VALUE并记录警告
+                System.err.println("警告: PK金额计算溢出，系数=" + this.coefficient + ", 原始金额=" + price);
+                return Long.MAX_VALUE;
+            }
+            
+            if (result.compareTo(new BigDecimal(Long.MIN_VALUE)) < 0) {
+                // 如果小于最小值，返回0
+                System.err.println("警告: PK金额计算结果为负数，系数=" + this.coefficient + ", 原始金额=" + price);
+                return 0L;
+            }
+            
+            return result.longValue();
+        } catch (Exception e) {
+            System.err.println("错误: PK金额计算异常，系数=" + this.coefficient + ", 原始金额=" + price + ", 错误=" + e.getMessage());
+            return price; // 发生异常时返回原始金额
+        }
     }
 }

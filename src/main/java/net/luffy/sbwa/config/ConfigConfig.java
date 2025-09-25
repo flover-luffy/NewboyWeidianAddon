@@ -252,7 +252,16 @@ public class ConfigConfig extends SimpleSettingConfig {
                         // 降级到串行处理
                         long stock = 0;
                         for (Long item_id : itemIds) {
-                            stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                            long itemStock = net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                            
+                            // 检查累加是否会导致溢出
+                            if (itemStock > 0 && stock > Long.MAX_VALUE - itemStock) {
+                                System.err.println("警告: 异步PK主商品库存累加溢出，当前总额=" + stock + ", 新增=" + itemStock);
+                                stock = Long.MAX_VALUE;
+                                break;
+                            }
+                            
+                            stock += itemStock;
                         }
                         if (stock != 0L) {
                             synchronized (json) {
@@ -284,7 +293,14 @@ public class ConfigConfig extends SimpleSettingConfig {
                                 
                                 long totalStock = stockMap.values().stream()
                                     .mapToLong(Long::longValue)
-                                    .sum();
+                                    .reduce(0L, (a, b) -> {
+                                        // 安全累加，防止溢出
+                                        if (b > 0 && a > Long.MAX_VALUE - b) {
+                                            System.err.println("警告: 异步PK库存累加溢出，当前总额=" + a + ", 新增=" + b);
+                                            return Long.MAX_VALUE;
+                                        }
+                                        return a + b;
+                                    });
                                 
                                 if (totalStock != 0L) {
                                     opponent.set("stock", totalStock);
@@ -294,7 +310,16 @@ public class ConfigConfig extends SimpleSettingConfig {
                                 // 降级到串行处理
                                 long stock = 0;
                                 for (Long item_id : itemIds) {
-                                    stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                                    long itemStock = net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                                    
+                                    // 检查累加是否会导致溢出
+                                    if (itemStock > 0 && stock > Long.MAX_VALUE - itemStock) {
+                                        System.err.println("警告: 异步PK对手库存累加溢出，当前总额=" + stock + ", 新增=" + itemStock);
+                                        stock = Long.MAX_VALUE;
+                                        break;
+                                    }
+                                    
+                                    stock += itemStock;
                                 }
                                 if (stock != 0L) {
                                     opponent.set("stock", stock);
@@ -359,7 +384,16 @@ public class ConfigConfig extends SimpleSettingConfig {
         if (!PKUtil.doGroupsHaveCookie(json) && !json.containsKey("stock")) {
             long stock = 0;
             for (Long item_id : json.getBeanList("item_ids", Long.class)) {
-                stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                long itemStock = net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                
+                // 检查累加是否会导致溢出
+                if (itemStock > 0 && stock > Long.MAX_VALUE - itemStock) {
+                    System.err.println("警告: 同步PK主商品库存累加溢出，当前总额=" + stock + ", 新增=" + itemStock);
+                    stock = Long.MAX_VALUE;
+                    break;
+                }
+                
+                stock += itemStock;
             }
 
             if (stock != 0L) {
@@ -375,7 +409,16 @@ public class ConfigConfig extends SimpleSettingConfig {
                 if (!success) {
                     long stock = 0;
                     for (Long item_id : opponent.getBeanList("item_id", Long.class)) {
-                        stock += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                        long itemStock = net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalStock(item_id);
+                        
+                        // 检查累加是否会导致溢出
+                        if (itemStock > 0 && stock > Long.MAX_VALUE - itemStock) {
+                            System.err.println("警告: 同步PK对手库存累加溢出，当前总额=" + stock + ", 新增=" + itemStock);
+                            stock = Long.MAX_VALUE;
+                            break;
+                        }
+                        
+                        stock += itemStock;
                     }
 
                     if (stock != 0L) {
@@ -509,10 +552,104 @@ public class ConfigConfig extends SimpleSettingConfig {
     }
 
     public boolean isValidPK(JSONObject json) {
-        return json.containsKey("groups")
-                && json.containsKey("name")
-                && json.containsKey("item_id")
-                && json.containsKey("opponents");
+        if (json == null) {
+            return false;
+        }
+        
+        // 检查必需字段
+        if (!json.containsKey("groups") || !json.containsKey("name") || 
+            !json.containsKey("item_id") || !json.containsKey("opponents")) {
+            return false;
+        }
+        
+        // 验证groups字段
+        try {
+            List<Long> groups = json.getBeanList("groups", Long.class);
+            if (groups == null || groups.isEmpty()) {
+                return false;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        
+        // 验证name字段
+        String name = json.getStr("name");
+        if (name == null || name.trim().isEmpty()) {
+            return false;
+        }
+        
+        // 验证item_id字段
+        try {
+            Long itemId = json.getLong("item_id");
+            if (itemId == null || itemId <= 0) {
+                return false;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        
+        // 验证opponents字段
+        try {
+            JSONArray opponents = json.getJSONArray("opponents");
+            if (opponents == null || opponents.isEmpty()) {
+                return false;
+            }
+            
+            // 验证每个对手的数据
+            for (Object opponentObj : opponents) {
+                JSONObject opponent = JSONUtil.parseObj(opponentObj);
+                if (opponent == null) {
+                    return false;
+                }
+                
+                // 检查对手名称
+                String opponentName = opponent.getStr("name");
+                if (opponentName == null || opponentName.trim().isEmpty()) {
+                    return false;
+                }
+                
+                // 检查对手必须有item_id、cookie或stock中的至少一个
+                boolean hasValidData = false;
+                
+                if (opponent.containsKey("item_id")) {
+                    try {
+                        List<Long> itemIds = opponent.getBeanList("item_id", Long.class);
+                        if (itemIds != null && !itemIds.isEmpty() && 
+                            itemIds.stream().allMatch(id -> id != null && id > 0)) {
+                            hasValidData = true;
+                        }
+                    } catch (Exception e) {
+                        // item_id格式错误
+                    }
+                }
+                
+                if (!hasValidData && opponent.containsKey("cookie")) {
+                    String cookie = opponent.getStr("cookie");
+                    if (cookie != null && !cookie.trim().isEmpty()) {
+                        hasValidData = true;
+                    }
+                }
+                
+                if (!hasValidData && opponent.containsKey("stock")) {
+                    try {
+                        Long stock = opponent.getLong("stock");
+                        if (stock != null && stock >= 0) {
+                            hasValidData = true;
+                        }
+                    } catch (Exception e) {
+                        // stock格式错误
+                    }
+                }
+                
+                if (!hasValidData) {
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        
+        return true;
     }
 
     public JSONObject[] getPkByGroupId(long groupId) {

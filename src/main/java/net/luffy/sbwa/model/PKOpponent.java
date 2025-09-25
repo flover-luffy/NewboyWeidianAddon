@@ -3,6 +3,7 @@ package net.luffy.sbwa.model;
 import cn.hutool.json.JSONObject;
 import net.luffy.model.WeidianCookie;
 import net.luffy.sbwa.handler.WeidianHandler;
+import net.luffy.sbwa.handler.SalesEstimator;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,13 +82,23 @@ public class PKOpponent {
             WeidianCookie wCookie = WeidianCookie.construct(cookie);
             for (Long itemId : itemIds) {
                 if (itemId != null) {
-                    fee += net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalFee(wCookie, itemId);
+                    long itemFee = net.luffy.sbwa.handler.WeidianHandler.INSTANCE.getTotalFee(wCookie, itemId);
+                    
+                    // 检查累加是否会导致溢出
+                    if (itemFee > 0 && fee > Long.MAX_VALUE - itemFee) {
+                        log.warn("PK对手金额累加溢出，当前总额={}, 新增金额={}, 商品ID={}", fee, itemFee, itemId);
+                        return Long.MAX_VALUE;
+                    }
+                    
+                    fee += itemFee;
                 }
             }
         } catch (Exception e) {
             log.error("Fee calculation error", e);
         }
-        return fee;
+        
+        // 确保返回值不为负数
+        return Math.max(0L, fee);
     }
 
     private static long calculateTotalStock(JSONObject opponent) {
@@ -108,23 +119,37 @@ public class PKOpponent {
      */
     private static long getEnhancedEstimation(JSONObject opponent, long baseStock) {
         try {
-            // 获取商品ID
-            Long itemId = null;
-            if (opponent.containsKey("item_id")) {
-                itemId = opponent.getLong("item_id");
-            }
+            // 获取商品ID列表
+            List<Long> itemIds = opponent.getBeanList("item_id", Long.class);
             
-            if (itemId != null && WeidianHandler.INSTANCE != null) {
-                // 使用新的销量估算功能
+            if (itemIds != null && !itemIds.isEmpty() && WeidianHandler.INSTANCE != null) {
+                // 使用新的销量估算功能（无需Cookie）
                 long timeWindow = 60 * 60 * 1000; // 1小时时间窗口
+                long totalEstimatedSales = 0L;
+                
                 try {
-                    // 这里假设WeidianHandler有getEstimatedSales方法
-                    // 实际实现时需要根据WeidianHandler的API调整
-                    long estimatedSales = WeidianHandler.INSTANCE.getTotalFee(WeidianCookie.construct(opponent.getStr("cookie", "")), itemId);
+                    for (Long itemId : itemIds) {
+                        if (itemId != null) {
+                            // 使用无Cookie的销量估算方法
+                            SalesEstimator.EstimationResult result = WeidianHandler.INSTANCE.getEstimatedSales(itemId, timeWindow);
+                            
+                            if (result != null && result.estimatedSales > 0) {
+                                // 检查累加是否会导致溢出
+                                if (result.estimatedSales > 0 && totalEstimatedSales > Long.MAX_VALUE - result.estimatedSales) {
+                                    log.warn("增强估算金额累加溢出，当前总额={}, 新增金额={}, 商品ID={}", 
+                                            totalEstimatedSales, result.estimatedSales, itemId);
+                                    return Long.MAX_VALUE;
+                                }
+                                
+                                totalEstimatedSales += result.estimatedSales;
+                                log.debug("商品{}估算销量: {}, 累计: {}", itemId, result.estimatedSales, totalEstimatedSales);
+                            }
+                        }
+                    }
                     
-                    if (estimatedSales > 0) {
-                        log.info("使用增强估算: 商品{}, 估算销量: {}", itemId, estimatedSales);
-                        return estimatedSales;
+                    if (totalEstimatedSales > 0) {
+                        log.info("使用增强估算成功: 总估算销量: {}", totalEstimatedSales);
+                        return totalEstimatedSales;
                     }
                 } catch (Exception e) {
                     log.debug("Enhanced estimation failed, using base stock", e);
@@ -132,6 +157,7 @@ public class PKOpponent {
             }
             
             // 回退到基础库存值
+            log.debug("回退到基础库存值: {}", baseStock);
             return baseStock;
             
         } catch (Exception e) {
