@@ -269,7 +269,7 @@ public class SalesEstimator {
         } else if (hourlyRate > 1000) { // 中活跃度商品
             return 5; // 5分钟
         } else { // 低活跃度商品
-            return 10; // 10分钟
+            return 1; // 1分钟
         }
     }
 }
